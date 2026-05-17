@@ -1,4 +1,4 @@
-name: B&P Keycloak image with extensions for new version
+name: B&P Keycloak extended for new version
 
 on:
     pull_request:

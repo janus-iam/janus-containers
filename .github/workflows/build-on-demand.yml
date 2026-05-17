@@ -1,4 +1,4 @@
-name: B&P Keycloak Image with extensions for fixed versions
+name: B&P Keycloak extended for fixed versions
 
 on:
   workflow_dispatch:
