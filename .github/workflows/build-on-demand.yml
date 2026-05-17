@@ -28,5 +28,5 @@ jobs:
           build-args: |
             KEYCLOAK_VERSION=${{ matrix.keycloak_version }}
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/keycloak_extended:${{ matrix.keycloak_version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/keycloak_extended_a:${{ matrix.keycloak_version }}
           platforms: linux/amd64,linux/arm64

@@ -32,5 +32,5 @@ jobs:
           build-args: |
             KEYCLOAK_VERSION=${{ steps.keycloak.outputs.version }}
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/keycloak_extended:${{ steps.keycloak.outputs.version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/keycloak_extended_a:${{ steps.keycloak.outputs.version }}
           platforms: linux/amd64,linux/arm64
