@@ -1,4 +1,4 @@
-name: Build and Push Keycloak Image with extensions
+name: Build and Push Keycloak Image with extensions when new version is released
 
 on:
     pull_request:
