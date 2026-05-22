@@ -1,4 +1,4 @@
-ARG KEYCLOAK_VERSION=26.6.1
+ARG KEYCLOAK_VERSION=26.6.2
 
 FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS builder
 
@@ -19,7 +19,10 @@ RUN /opt/keycloak/bin/kc.sh build \
   --metrics-enabled=true \
   --telemetry-enabled=true \
   --tracing-enabled=true \
-  --event-metrics-user-enabled=true
+  --event-metrics-user-enabled=true \ 
+  --spi-events-listener-kete-enabled=true \
+  --spi-events-listener-kete-metrics-enabled=true \
+  --features-disabled="organization,workflows"
 
 FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
