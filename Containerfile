@@ -17,11 +17,10 @@ RUN /opt/keycloak/bin/kc.sh build \
   --http-relative-path=/auth \
   --health-enabled=true \
   --metrics-enabled=true \
-  --telemetry-enabled=true \
   --tracing-enabled=true \
   --event-metrics-user-enabled=true \ 
-  --spi-events-listener-kete-enabled=true \
-  --spi-events-listener-kete-metrics-enabled=true \
+  --spi-events-listener--kete--enabled=true \
+  --spi-events-listener--kete--metrics-enabled=true \
   --features-disabled="organization,workflows"
 
 FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
