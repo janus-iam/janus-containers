@@ -2,6 +2,9 @@ name: B&P Keycloak extended for fixed versions
 
 on:
     workflow_dispatch:
+    push:
+      paths:
+          - .github/workflows/build-on-demand.yml
 
 jobs:
     build-and-push:
