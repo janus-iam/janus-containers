@@ -16,7 +16,9 @@ The image is built with the following Keycloak features disabled (`--features-di
 
 - `organization`
 - `workflows`
-- `recovery-codes`
+- `impersonation`
+
+In addition to the [features disabled by default](https://www.keycloak.org/server/features#_disabled_by_default)
 
 ## Differences to come
 
