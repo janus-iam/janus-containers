@@ -4,6 +4,14 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "keycloak container version",
+      "managerFilePatterns": ["/(^|/)Containerfile$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>.+?)\\s*ARG KEYCLOAK_VERSION=(?<currentValue>\\S+)"
+      ]
+    },
+    {
+      "customType": "regex",
       "description": "keycloak-totp-admin-api JAR version",
       "managerFilePatterns": ["/(^|/)Containerfile$/"],
       "matchStrings": [
@@ -21,6 +29,11 @@
     }
   ],
   "packageRules": [
+    {
+      "matchDatasources": ["docker"],
+      "matchDepNames": ["quay.io/keycloak/keycloak"],
+      "automerge": true
+    },
     {
       "matchDatasources": ["github-releases"],
       "matchDepNames": ["janus-iam/keycloak-totp-admin-api"],

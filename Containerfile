@@ -1,3 +1,4 @@
+# renovate: datasource=docker depName=quay.io/keycloak/keycloak
 ARG KEYCLOAK_VERSION=26.7.0
 
 FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS builder
