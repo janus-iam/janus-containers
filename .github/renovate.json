@@ -36,12 +36,6 @@
     },
     {
       "matchDatasources": ["github-releases"],
-      "matchDepNames": ["janus-iam/keycloak-totp-admin-api"],
-      "automerge": true,
-      "versioning": "semver"
-    },
-    {
-      "matchDatasources": ["github-releases"],
       "matchDepNames": ["FortuneN/kete"],
       "automerge": true
     }
