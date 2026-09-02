@@ -1,6 +1,6 @@
-# Proving impersonation is disabled
+# Proving impersonation is disabled (supply-chain way)
 
-Goal: let people verify that this Janus Keycloak build has **user impersonation turned off**, without a shared VPS shell or a Kubernetes account.
+Goal: let people verify that the Keycloak you run was **built with impersonation disabled**.
 
 This image disables it at **build** time:
 
@@ -8,64 +8,80 @@ This image disables it at **build** time:
 --features-disabled="organization,workflows,impersonation"
 ```
 
-That is stronger than only removing the admin “impersonate” permission: the Keycloak `impersonation` feature is not available in the binary configuration.
+That property is baked into the image. The standard supply-chain way to prove you host that build is the **image digest** the cluster is running—not a hand-written status JSON, and not Docker Compose on a VPS.
 
-## What to show people (simple → stronger)
+## Proof chain
 
-### 1. Public build recipe (already true)
-
-Anyone can read this repository’s `Containerfile` and see `impersonation` in `--features-disabled`. That is a public commitment about **what the image is built to do**.
-
-### 2. Live Keycloak server info (best practical check)
-
-`GET /auth/admin/serverinfo` **requires admin authentication**. In Keycloak 26.7.x (this image’s base):
-
-1. Missing/invalid Bearer token → **401** (`authenticateRealmAdminRequest`)
-2. Authenticated but not an admin (`AdminPermissions.realms(…).isAdmin()`) → **403**
-3. Only then is the feature list returned (including whether `impersonation` is disabled)
-
-So this is **not** a public anonymous endpoint. Verifiers need a Keycloak admin-capable account (any realm admin role is enough to pass `isAdmin()`; master `admin` / `create-realm` also qualifies).
-
-Check feature state via:
-
-- Admin Console → Server info (feature list), or
-- `GET /auth/admin/serverinfo` with an admin access token (path prefix matches `--http-relative-path=/auth`)
-
-Give them a **Keycloak account**, not a kubeconfig:
-
-- user with only enough admin rights to open Server info / call `serverinfo`
-- no pod access, no Docker socket, no cluster secrets
-
-That answers “is impersonation off on the instance I care about?” with far less blast radius than namespace-wide Kubernetes read.
-
-### 3. Behavioral check (optional)
-
-With a token that would normally be allowed to impersonate, call:
-
-```http
-POST /auth/admin/realms/{realm}/users/{user-id}/impersonation
+```text
+Containerfile (--features-disabled=impersonation)
+        ↓ CI build + push
+image@sha256:D  (+ provenance / SBOM when enabled)
+        ↓ deploy by digest (not by floating tag)
+Pod status.containerStatuses[].imageID == sha256:D
+        ↓ verifier checks digest D
+D matches a build of this repo ⇒ impersonation was disabled in that build
 ```
 
-When the feature is build-disabled, impersonation should fail (feature unavailable), not create an impersonation session. Document the expected error for your Keycloak version so outsiders can reproduce it.
+So the claim “impersonation is off” reduces to:
 
-## What not to bother with (for this goal)
+1. This repo’s `Containerfile` disables it.
+2. Digest `D` was built from that recipe (CI record / attestation).
+3. The live workload runs `…@sha256:D` (Kubernetes image ID).
 
-| Approach | Why it is the wrong tool here |
+That is the supplier / supply-chain model: **identity of the artifact**, not a separate “feature flag” API.
+
+## How verifiers see the running digest
+
+### Preferred: narrow Kubernetes read on the auth namespace
+
+A namespaced account that can only `get`/`list` `pods` (and optionally `deployments`) so people can read:
+
+```bash
+kubectl -n <auth-ns> get pods -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.containerStatuses[*].imageID}{"\n"}{end}'
+```
+
+Compare that digest to the one published in the GitHub Actions job summary for this image.
+
+This is **better than Docker Compose on a VPS** (no host/Docker socket) and is the normal way auditors check “what binary is scheduled.”
+
+Harden it:
+
+- One namespace only; no cluster-wide read
+- No `secrets`, `exec`, `port-forward`, `pods/log` unless required
+- Short-lived tokens; rotate; never paste long-lived kubeconfigs into chat
+- Expect that `get pods` can still expose env/mount metadata—keep secrets out of pod env where possible, or front the digest with a tiny custom read API if that leakage is unacceptable
+
+### Also publish the digest from CI (this repo)
+
+Build workflows already record the pushed digest in the job summary and can emit provenance/SBOM. Pin Deployments with `image: …@sha256:…` so the running ID cannot drift from a moving tag.
+
+## Optional corroboration (not the supply-chain root of trust)
+
+### Keycloak Server info
+
+`GET /auth/admin/serverinfo` shows feature flags, but it **requires admin auth** (401 without Bearer, 403 if not admin). Useful as a second check for someone who already has a Keycloak admin account; it is not a public substitute for the digest chain.
+
+### Impersonation API behavior
+
+`POST /auth/admin/realms/{realm}/users/{id}/impersonation` should fail when the feature is build-disabled. Same caveat: needs privileged credentials, and a hostile operator can still fake HTTP.
+
+## What to avoid
+
+| Approach | Why |
 | --- | --- |
-| Shared Docker Compose / Docker socket on a VPS | Proves nothing specific about impersonation; gives host-level access |
-| Namespaced read-only Kubernetes account | Lets people read image digests/env; still overkill and leaky if the question is only “is impersonation off?” |
-| Public JSON that only says `"impersonation": false` | Easy to fake; prefer Server info or the impersonation API |
-
-Full image-digest transparency (attestations, pinned digests) is still useful for supply-chain trust, but it is **not required** to answer the impersonation question. Prefer Keycloak’s own feature reporting.
+| Shared Docker Compose / Docker socket on a VPS | Host-level access; not how you prove an image digest |
+| Trusting a self-hosted `"impersonation": false` JSON alone | Easy to fake; no link to the artifact |
+| Floating tags (`:26.7.2`) without digest pins | Tag can move; digest cannot |
 
 ## Honest limits
 
-- A malicious operator can still run a **different** image or proxy fake admin responses. No public file or API they solely control is absolute proof against that threat model.
-- For normal “show customers / auditors we disabled it” trust, **Containerfile + live Server info** is the right level.
-- Against a hostile-host model you need an independent observer or stronger runtime attestation—not a broader kubeconfig.
+- Digest proof shows you run **artifact D**. It shows impersonation is off **if D was built from this Containerfile** (attestation / reproducible rebuild).
+- A hostile operator can still point verifiers at a different cluster or lie about which namespace to inspect. Narrow RO access to the real auth namespace closes that for invited auditors.
+- Server info alone is weaker than digest pinning for supply-chain claims.
 
 ## Decision for Janus
 
-1. Keep `impersonation` in `--features-disabled` in this repo (done).
-2. Tell verifiers to check **Server info** (or the impersonation API), using a minimal Keycloak admin-scoped account if needed.
-3. Do **not** hand out Docker Compose hosts or Kubernetes read accounts for this claim.
+1. Keep `impersonation` in `--features-disabled` (done).
+2. Treat **running image digest** as the primary proof; CI records digests for comparison.
+3. Offer a **namespaced read-only Kubernetes account** (pods/deployments) for people who should verify what you host—prefer that over Compose on a VPS.
+4. Use Server info / impersonation API only as optional corroboration for Keycloak admins.

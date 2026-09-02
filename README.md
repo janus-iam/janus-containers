@@ -20,9 +20,9 @@ The image is built with the following Keycloak features disabled (`--features-di
 
 In addition to the [features disabled by default](https://www.keycloak.org/server/features#_disabled_by_default)
 
-To let someone verify that **impersonation is off on a live instance**, point them at Keycloak Server info (feature list) or a failing impersonation API call—not at Docker Compose or a Kubernetes account. See [docs/transparency.md](docs/transparency.md).
+To verify that a live instance runs a build with **impersonation disabled**, use the supply-chain path: match the **Kubernetes pod image digest** to a CI-built digest from this repo (see [docs/transparency.md](docs/transparency.md)). Server info is optional corroboration and requires admin auth.
 
-CI also records image digests on each build (useful for pinning deploys; optional for the impersonation claim).
+CI records image digests on each build so deploys can be pinned with `image@sha256:…`.
 
 ## Differences to come
 
