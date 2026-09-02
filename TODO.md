@@ -2,8 +2,9 @@
 
 - [ ] Harden Containerfile security ?
 
-- [x] Prove impersonation is disabled without shared kubeconfig / Compose
-  - Real goal: show that Keycloak user impersonation is off (build `--features-disabled=impersonation`)
-  - Decision: public Containerfile + live Server info / impersonation API check via a minimal Keycloak account (see `docs/transparency.md`)
-  - Rejected: namespaced RO k8s accounts and shared Docker Compose on a VPS (wrong tool / too much blast radius)
-  - CI still records image digests for deploy pinning; not required for the impersonation claim
+- [x] Prove impersonation is disabled (supply-chain / image digest)
+  - Real goal: show Keycloak impersonation is off (`--features-disabled=impersonation` in this build)
+  - Decision: primary proof = running k8s image digest ↔ CI digest from this Containerfile (see `docs/transparency.md`)
+  - OK: namespaced RO k8s account limited to pods/deployments for invited verifiers (supplier way; better than Compose on a VPS)
+  - Rejected as primary proof: self-hosted feature JSON; Compose/Docker socket on a VPS
+  - Optional: Keycloak Server info / impersonation API (needs admin auth; not the supply-chain root)
