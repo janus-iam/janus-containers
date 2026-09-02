@@ -24,7 +24,7 @@ In addition to the [features disabled by default](https://www.keycloak.org/serve
 
 Image tags move; **digests** do not. CI records the pushed digest for each build.
 
-To prove a running cluster uses an image built from this repository **without** giving out Docker Compose access or a Kubernetes account, use digests + a public transparency document. See [docs/transparency.md](docs/transparency.md).
+To let people check a claimed running digest **without** Docker Compose access or a Kubernetes account, use digests + a public transparency document. That document is a **claim**—attestations prove the image was built from this repo; they do not by themselves prove the host is truthful about runtime. See [docs/transparency.md](docs/transparency.md).
 
 **Do not** share a VPS Docker socket or a namespaced read-only kubeconfig for this: both leak far more than an image SHA.
 

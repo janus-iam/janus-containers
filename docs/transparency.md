@@ -45,15 +45,41 @@ Serve it from:
 
 No kube API. No pod listing. No env dump.
 
+### Important: the JSON alone is not proof
+
+Yes — if you are ill-intentioned, you can publish a **false** JSON that names a good digest `D` while actually running evil image `E`. Anyone who only trusts the file is tricked.
+
+Treat the endpoint as a **claim**, not a trust root.
+
+| What outsiders can verify | What they cannot verify from your JSON |
+| --- | --- |
+| Digest `D` was built from this repo / commit (Sigstore / GitHub OIDC attestation) | That your servers are *actually executing* `D` right now |
+| You *claim* to run `D` | That the claim matches runtime |
+
+Build attestations stop “I built this magic binary off-repo.” They do **not** stop “I lie about what I run.”
+
 ### 3. Independent verification recipe
 
 Publish a short public checklist:
 
-1. `curl https://auth.example.com/.well-known/janus-image.json` → digest `D`
-2. Verify signature / attestation for `D` against this GitHub org/repo
+1. `curl https://auth.example.com/.well-known/janus-image.json` → claimed digest `D` (**untrusted claim**)
+2. Verify signature / attestation for `D` against this GitHub org/repo (**trusted if Sigstore/GitHub identity holds**)
 3. Optionally pull `image@D` and compare filesystem / SBOM (advanced)
+4. For **runtime honesty**, require something outside your sole control (see below)
 
-That proves **hosting** (runtime digest) and **provenance** (build attestation) separately.
+Steps 1–3 prove **provenance of the claimed digest**. They do not by themselves prove **hosting**.
+
+### Closing the “fake JSON” gap
+
+Pick one or combine:
+
+1. **Signed claim + public expectation** — still forgeable by you, but lies become explicit and timestamped (Rekor / release notes). Social accountability, not crypto proof of runtime.
+2. **Independent observer** — auditor, customer, or monitor with narrow evidence of the live digest (privileged peek, or your own admission controller + external log sink you do not solely control).
+3. **Hardware attestation (TEE)** — SEV-SNP / TDX style remote attestation of the running workload. Strong, uncommon for a normal Keycloak VPS.
+4. **Reproducible builds** — outsiders rebuild the same commit and get the same digest. Proves the *image*, not that *you* run it.
+5. **Do not overclaim** — document clearly: “this JSON is our statement; attestations prove the image build; runtime verification needs an audit.”
+
+Honest framing beats a fake sense of crypto proof.
 
 ## If you still want Kubernetes RBAC
 
@@ -83,5 +109,6 @@ None of these replace a transparency endpoint for public proof.
 ## Minimal decision for Janus
 
 1. Keep publishing multi-arch images from this repo with **recorded digests** (and attestations when enabled in CI).
-2. In the cluster that *runs* Keycloak, publish a **public digest document** (or signed status page)—not a shared kubeconfig.
-3. Document the verify steps next to the IdP hostname so auditors do not need cluster credentials.
+2. In the cluster that *runs* Keycloak, publish a **public digest claim** (JSON)—not a shared kubeconfig. Label it as a claim.
+3. Tell verifiers to check **attestations** for that digest; never trust the JSON alone.
+4. If you need to prove runtime against a hostile-operator threat model, add an independent audit path (or TEE)—the public file cannot carry that burden.
