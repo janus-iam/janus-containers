@@ -18,16 +18,22 @@ Anyone can read this repository’s `Containerfile` and see `impersonation` in `
 
 ### 2. Live Keycloak server info (best practical check)
 
-Keycloak exposes feature state on the admin **Server info** API / console (features enabled vs disabled), typically via:
+`GET /auth/admin/serverinfo` **requires admin authentication**. In Keycloak 26.7.x (this image’s base):
+
+1. Missing/invalid Bearer token → **401** (`authenticateRealmAdminRequest`)
+2. Authenticated but not an admin (`AdminPermissions.realms(…).isAdmin()`) → **403**
+3. Only then is the feature list returned (including whether `impersonation` is disabled)
+
+So this is **not** a public anonymous endpoint. Verifiers need a Keycloak admin-capable account (any realm admin role is enough to pass `isAdmin()`; master `admin` / `create-realm` also qualifies).
+
+Check feature state via:
 
 - Admin Console → Server info (feature list), or
-- `GET /auth/admin/serverinfo` (with an admin access token; path prefix matches this image’s `--http-relative-path=/auth`)
-
-Have the verifier confirm `impersonation` appears as **disabled**.
+- `GET /auth/admin/serverinfo` with an admin access token (path prefix matches `--http-relative-path=/auth`)
 
 Give them a **Keycloak account**, not a kubeconfig:
 
-- realm (or master) user with only enough rights to open Server info / call `serverinfo`
+- user with only enough admin rights to open Server info / call `serverinfo`
 - no pod access, no Docker socket, no cluster secrets
 
 That answers “is impersonation off on the instance I care about?” with far less blast radius than namespace-wide Kubernetes read.
