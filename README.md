@@ -20,13 +20,9 @@ The image is built with the following Keycloak features disabled (`--features-di
 
 In addition to the [features disabled by default](https://www.keycloak.org/server/features#_disabled_by_default)
 
-## Verifying what we build and host
+To let someone verify that **impersonation is off on a live instance**, point them at Keycloak Server info (feature list) or a failing impersonation API call—not at Docker Compose or a Kubernetes account. See [docs/transparency.md](docs/transparency.md).
 
-Image tags move; **digests** do not. CI records the pushed digest for each build.
-
-To let people check a claimed running digest **without** Docker Compose access or a Kubernetes account, use digests + a public transparency document. That document is a **claim**—attestations prove the image was built from this repo; they do not by themselves prove the host is truthful about runtime. See [docs/transparency.md](docs/transparency.md).
-
-**Do not** share a VPS Docker socket or a namespaced read-only kubeconfig for this: both leak far more than an image SHA.
+CI also records image digests on each build (useful for pinning deploys; optional for the impersonation claim).
 
 ## Differences to come
 
