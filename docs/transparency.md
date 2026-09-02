@@ -68,6 +68,42 @@ Practical options if plaintext env leakage is unacceptable:
 
 So: use namespaced pod read when the Pod spec is already non-sensitive; if it is not, publish digest via a **dedicated object or endpoint**, not raw `get pods`.
 
+## VPS / Docker Compose alternative
+
+Same supply-chain goal, no Kubernetes.
+
+### Do not put verifiers in the `docker` group
+
+Membership in `docker` is effectively **root on the host** (mount `/`, start privileged containers, read any file via a container). It is not a “read-only Docker user.” There is no safe first-class Docker RBAC on the engine socket comparable to Kubernetes Roles.
+
+### Pattern that works: local agent + public digest list
+
+Only a **local** process may touch the Docker socket. Verifiers hit an HTTP surface that returns **only** name + image digest (and maybe compose service name)—nothing else.
+
+Minimal open-source DIY:
+
+```bash
+# cron every minute as root / docker-capable user — not exposed to verifiers
+docker inspect $(docker ps -q) --format '{{.Name}} {{.Image}} {{.Id}}' \
+  > /var/www/transparency/images.txt
+# or JSON with RepoDigests / Image ID
+```
+
+Serve `/var/www/transparency/` with nginx (static files only). No docker.sock in the web container.
+
+Slightly nicer: a tiny container that mounts `docker.sock`, writes digests to a volume, and a second container (nginx) that only serves that volume—**never** mounts the socket.
+
+### Off-the-shelf UIs (use carefully)
+
+| Tool | Fit |
+| --- | --- |
+| **DIY static JSON + nginx** | Best match for “show digests only” |
+| **[WUD – What’s Up Docker](https://getwud.github.io/wud/)** | OSS dashboard of running images/tags; needs docker.sock on the *agent*; put auth in front; disable update triggers for verifiers; still may show more than a digest |
+| Portainer / Dockge / similar | Ops panels—too powerful for external proof even with “RO” roles |
+| Giving an SSH user + `docker` group | Equivalent to sharing root |
+
+Prefer the static digest page (or a one-purpose API) over inviting people into Docker tooling.
+
 ### Also publish the digest from CI (this repo)
 
 Build workflows already record the pushed digest in the job summary and can emit provenance/SBOM. Pin Deployments with `image: …@sha256:…` so the running ID cannot drift from a moving tag.
@@ -86,19 +122,21 @@ Build workflows already record the pushed digest in the job summary and can emit
 
 | Approach | Why |
 | --- | --- |
-| Shared Docker Compose / Docker socket on a VPS | Host-level access; not how you prove an image digest |
+| Shared Docker Compose / Docker socket / `docker` group on a VPS | Host-level access; Docker has no safe field-level “digest only” user |
 | Trusting a self-hosted `"impersonation": false` JSON alone | Easy to fake; no link to the artifact |
 | Floating tags (`:26.7.2`) without digest pins | Tag can move; digest cannot |
 
 ## Honest limits
 
 - Digest proof shows you run **artifact D**. It shows impersonation is off **if D was built from this Containerfile** (attestation / reproducible rebuild).
-- A hostile operator can still point verifiers at a different cluster or lie about which namespace to inspect. Narrow RO access to the real auth namespace closes that for invited auditors.
+- A hostile operator can still point verifiers at a different host or lie about which workload to inspect. Invited auditors need a known URL/namespace.
 - Server info alone is weaker than digest pinning for supply-chain claims.
+- A VPS digest webpage is still a **claim about that host**; keep the collector honest and the page limited to digests.
 
 ## Decision for Janus
 
 1. Keep `impersonation` in `--features-disabled` (done).
 2. Treat **running image digest** as the primary proof; CI records digests for comparison.
-3. Offer a **namespaced read-only Kubernetes account** (pods/deployments) for people who should verify what you host—prefer that over Compose on a VPS.
-4. Use Server info / impersonation API only as optional corroboration for Keycloak admins.
+3. On Kubernetes: namespaced RO pod/deploy read, or a digest-only CRD/API if env leakage matters.
+4. On a VPS: **not** `docker` group—use a local socket agent + public digest list (static file / tiny API); optional WUD behind auth for richer UI.
+5. Use Server info / impersonation API only as optional corroboration for Keycloak admins.
