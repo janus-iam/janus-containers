@@ -49,7 +49,24 @@ Harden it:
 - One namespace only; no cluster-wide read
 - No `secrets`, `exec`, `port-forward`, `pods/log` unless required
 - Short-lived tokens; rotate; never paste long-lived kubeconfigs into chat
-- Expect that `get pods` can still expose env/mount metadata—keep secrets out of pod env where possible, or front the digest with a tiny custom read API if that leakage is unacceptable
+- **RBAC cannot hide env vars while allowing digest reads** (see below)
+
+### Can RBAC show only the image digest, not env?
+
+**No.** Kubernetes RBAC authorizes whole resources/subresources (`pods`, `pods/status`, …), not JSON fields. If someone can `get`/`list` pods, the API returns the **full** Pod object, including `spec.containers[].env`, volume mounts, service account name, etc.
+
+Client-side tricks (`-o jsonpath=…imageID`) only change what *kubectl prints*; they do not stop `kubectl get pod -o yaml`.
+
+Practical options if plaintext env leakage is unacceptable:
+
+| Approach | Effect |
+| --- | --- |
+| Keep secrets out of pod env (`valueFrom.secretKeyRef` / mounted files; never `value: …`) | Pod YAML shows secret *names*, not secret *data* (still some metadata leakage) |
+| Deny `get`/`list` on `secrets` and `configmaps` | Stops reading secret bodies; does **not** strip env from the Pod object |
+| Controller → small CRD/ConfigMap that only stores `{image, digest}` + RBAC on that object only | Verifiers never need `get pods` |
+| Read-only aggregating API / reverse proxy that returns only `imageID` | Same idea; you maintain the filter |
+
+So: use namespaced pod read when the Pod spec is already non-sensitive; if it is not, publish digest via a **dedicated object or endpoint**, not raw `get pods`.
 
 ### Also publish the digest from CI (this repo)
 
