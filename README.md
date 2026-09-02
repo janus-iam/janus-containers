@@ -20,6 +20,14 @@ The image is built with the following Keycloak features disabled (`--features-di
 
 In addition to the [features disabled by default](https://www.keycloak.org/server/features#_disabled_by_default)
 
+## Verifying what we build and host
+
+Image tags move; **digests** do not. CI records the pushed digest for each build.
+
+To prove a running cluster uses an image built from this repository **without** giving out Docker Compose access or a Kubernetes account, use digests + a public transparency document. See [docs/transparency.md](docs/transparency.md).
+
+**Do not** share a VPS Docker socket or a namespaced read-only kubeconfig for this: both leak far more than an image SHA.
+
 ## Differences to come
 
 ### Cache

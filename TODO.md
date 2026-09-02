@@ -2,4 +2,6 @@
 
 - [ ] Harden Containerfile security ?
 
-- [ ] Give read on namespace k8s account for people to check the sha of the image running ? safe alternative for docker compose on a vps ?  
+- [x] Prove hosted image SHA without shared kubeconfig / Compose
+  - Decision: publish digests + attestations from CI; expose a public runtime transparency JSON from the cluster (see `docs/transparency.md`)
+  - Rejected: namespaced RO k8s accounts and shared Docker Compose on a VPS (too much blast radius for “check the SHA”)

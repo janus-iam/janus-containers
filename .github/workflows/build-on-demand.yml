@@ -23,6 +23,7 @@ jobs:
                   password: ${{ secrets.DOCKERHUB_TOKEN }}
 
             - uses: docker/build-push-action@v7
+              id: push
               with:
                   push: true
                   file: Containerfile
@@ -32,3 +33,20 @@ jobs:
                   tags: |
                       ${{ secrets.DOCKERHUB_USERNAME }}/keycloak_extended_a:${{ matrix.keycloak_version }}
                   platforms: linux/amd64,linux/arm64
+                  provenance: mode=max
+                  sbom: true
+
+            - name: Record image digest
+              run: |
+                  repo="${{ secrets.DOCKERHUB_USERNAME }}/keycloak_extended_a"
+                  tag="${{ matrix.keycloak_version }}"
+                  digest="${{ steps.push.outputs.digest }}"
+                  {
+                    echo "## Published image (${tag})"
+                    echo ""
+                    echo "- Tag: \`${repo}:${tag}\`"
+                    echo "- Digest: \`${repo}@${digest}\`"
+                    echo ""
+                    echo "Pin deploys with the digest, not only the tag. See \`docs/transparency.md\`."
+                  } >> "$GITHUB_STEP_SUMMARY"
+                  echo "Pushed ${repo}:${tag} -> ${digest}"
