@@ -2,7 +2,8 @@
 
 - [ ] Harden Containerfile security ?
 
-- [x] Prove hosted image SHA without shared kubeconfig / Compose
-  - Decision: publish digests + attestations from CI; expose a public runtime transparency JSON as a *claim* (see `docs/transparency.md`)
-  - Rejected: namespaced RO k8s accounts and shared Docker Compose on a VPS (too much blast radius for “check the SHA”)
-  - Note: JSON alone can lie; attestations prove build provenance of a digest, not that the operator runs it—runtime proof needs audit/TEE/independent observer
+- [x] Prove impersonation is disabled without shared kubeconfig / Compose
+  - Real goal: show that Keycloak user impersonation is off (build `--features-disabled=impersonation`)
+  - Decision: public Containerfile + live Server info / impersonation API check via a minimal Keycloak account (see `docs/transparency.md`)
+  - Rejected: namespaced RO k8s accounts and shared Docker Compose on a VPS (wrong tool / too much blast radius)
+  - CI still records image digests for deploy pinning; not required for the impersonation claim
