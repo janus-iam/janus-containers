@@ -1,0 +1,34 @@
+# Namespaced read for invited verifiers. Full Pod objects are returned
+# (including env names / secretKeyRef). Kubernetes cannot restrict to imageID.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: image-digest-reader
+  namespace: janus-auth
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: image-digest-reader
+  namespace: janus-auth
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: image-digest-reader
+  namespace: janus-auth
+subjects:
+  - kind: ServiceAccount
+    name: image-digest-reader
+    namespace: janus-auth
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: image-digest-reader
