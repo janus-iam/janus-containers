@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Running image digests</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 2rem auto; max-width: 72rem; padding: 0 1rem; }
+    h1 { font-size: 1.25rem; }
+    p, td, th { font-size: 0.95rem; }
+    code, td { word-break: break-all; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent); text-align: left; padding: 0.5rem 0.4rem; vertical-align: top; }
+    .meta { opacity: 0.75; }
+    .error { color: #b00020; }
+  </style>
+</head>
+<body>
+  <h1>Running image digests</h1>
+  <p class="meta">Name, image reference, and digest only. No environment variables.</p>
+  <p id="status" class="meta">Loading <a href="images.json">images.json</a>…</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Service</th>
+        <th>Image</th>
+        <th>Image ID</th>
+        <th>Repo digests</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <script>
+    const status = document.getElementById("status");
+    const rows = document.getElementById("rows");
+    fetch("images.json", { cache: "no-store" })
+      .then((r) => {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then((doc) => {
+        const items = doc.containers || [];
+        status.textContent = (doc.generated_by || "digest status") +
+          " — " + items.length + " container" + (items.length === 1 ? "" : "s");
+        rows.replaceChildren();
+        for (const c of items) {
+          const tr = document.createElement("tr");
+          const digests = (c.repo_digests || []).join("\n") || "—";
+          for (const value of [c.name, c.compose_service || "—", c.image, c.image_id, digests]) {
+            const td = document.createElement("td");
+            td.textContent = value;
+            tr.appendChild(td);
+          }
+          rows.appendChild(tr);
+        }
+      })
+      .catch((err) => {
+        status.className = "error";
+        status.textContent = "Could not load images.json: " + err.message;
+      });
+  </script>
+</body>
+</html>

@@ -26,6 +26,8 @@ services:
       - "127.0.0.1:8088:80"
     volumes:
       - digest-status:/usr/share/nginx/html:ro
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
     read_only: true
     tmpfs:

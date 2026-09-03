@@ -1,0 +1,167 @@
+# Digest-only Kubernetes proof.
+#
+# Publisher (this file) may list Pods and writes ConfigMap/running-image-digests.
+# Verifiers bind only to Role image-digest-reader — get that ConfigMap, not Pods.
+# Kubernetes RBAC cannot hide env on Pod get; this object is the workaround.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: image-digest-publisher
+  namespace: janus-auth
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: image-digest-publisher
+  namespace: janus-auth
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["running-image-digests"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: image-digest-publisher
+  namespace: janus-auth
+subjects:
+  - kind: ServiceAccount
+    name: image-digest-publisher
+    namespace: janus-auth
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: image-digest-publisher
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-digest-publisher-script
+  namespace: janus-auth
+data:
+  filter.jq: |
+    {
+      generated_by: "janus-containers/examples/k8s-digest-publisher",
+      generated_at: (now | strftime("%Y-%m-%dT%H:%M:%SZ")),
+      namespace: ((.items[0].metadata.namespace) // $namespace),
+      pods: [
+        .items[]
+        | {
+            name: .metadata.name,
+            containers: [
+              ((.status.containerStatuses // [])[])
+              | {
+                  name: .name,
+                  image: .image,
+                  image_id: .imageID
+                }
+            ]
+          }
+      ]
+    }
+  publish.sh: |
+    #!/bin/sh
+    set -eu
+    NAMESPACE="${NAMESPACE:-janus-auth}"
+    CM_NAME="${CM_NAME:-running-image-digests}"
+    OUT="${OUT:-/tmp/running-image-digests.json}"
+    kubectl get pods -n "$NAMESPACE" -o json \
+      | jq --arg namespace "$NAMESPACE" -f /scripts/filter.jq > "$OUT"
+    kubectl create configmap "$CM_NAME" \
+      --namespace "$NAMESPACE" \
+      --from-file=images.json="$OUT" \
+      --dry-run=client -o yaml \
+      | kubectl apply -f -
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: image-digest-publisher
+  namespace: janus-auth
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: image-digest-publisher
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            fsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: publish
+              # alpine/k8s provides kubectl + jq + a shell (official kubectl is distroless).
+              image: alpine/k8s:1.32.3
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/publish.sh"]
+              env:
+                - name: NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: scripts
+              configMap:
+                name: image-digest-publisher-script
+                defaultMode: 0755
+            - name: tmp
+              emptyDir: {}
+---
+# Invited verifiers: digest ConfigMap only. No pods, secrets, or other configmaps.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: image-digest-reader
+  namespace: janus-auth
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["running-image-digests"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: image-digest-reader
+  namespace: janus-auth
+subjects:
+  # Replace with the human/group you invite, or keep the SA and mint a token.
+  - kind: ServiceAccount
+    name: image-digest-reader
+    namespace: janus-auth
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: image-digest-reader
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: image-digest-reader
+  namespace: janus-auth

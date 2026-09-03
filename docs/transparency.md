@@ -32,24 +32,32 @@ That is the supplier / supply-chain model: **identity of the artifact**, not a s
 
 ## How verifiers see the running digest
 
-### Preferred: narrow Kubernetes read on the auth namespace
+### Preferred: digest-only ConfigMap (no pod env)
 
-A namespaced account that can only `get`/`list` `pods` (and optionally `deployments`) so people can read:
+RBAC cannot grant “digest but not env” on Pods. Publish the digest to a dedicated object, then grant `get` on **that object only**.
+
+```bash
+kubectl -n <auth-ns> get configmap running-image-digests -o jsonpath='{.data.images\.json}{"\n"}'
+```
+
+Compare each `image_id` to the digest in the GitHub Actions job summary for this image. Apply [`examples/k8s-digest-publisher/install.yaml`](../examples/k8s-digest-publisher/install.yaml). The publisher ServiceAccount may list Pods; verifiers must not receive it.
+
+### Optional: namespaced pod read (full objects)
+
+A namespaced account that can `get`/`list` `pods` (and optionally `deployments`) can also print:
 
 ```bash
 kubectl -n <auth-ns> get pods -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.containerStatuses[*].imageID}{"\n"}{end}'
 ```
 
-Compare that digest to the one published in the GitHub Actions job summary for this image.
+This is **better than Docker Compose on a VPS** (no host/Docker socket) but the API still returns env, mounts, and the rest of the Pod spec. Example: [`examples/k8s-digest-reader`](../examples/k8s-digest-reader).
 
-This is **better than Docker Compose on a VPS** (no host/Docker socket) and is the normal way auditors check “what binary is scheduled.”
-
-Harden it:
+Harden either path:
 
 - One namespace only; no cluster-wide read
 - No `secrets`, `exec`, `port-forward`, `pods/log` unless required
 - Short-lived tokens; rotate; never paste long-lived kubeconfigs into chat
-- **RBAC cannot hide env vars while allowing digest reads** (see below)
+- Prefer the ConfigMap reader when env leakage is unacceptable
 
 ### Can RBAC show only the image digest, not env?
 
@@ -66,7 +74,13 @@ Practical options if plaintext env leakage is unacceptable:
 | Controller → small CRD/ConfigMap that only stores `{image, digest}` + RBAC on that object only | Verifiers never need `get pods` |
 | Read-only aggregating API / reverse proxy that returns only `imageID` | Same idea; you maintain the filter |
 
-So: use namespaced pod read when the Pod spec is already non-sensitive; if it is not, publish digest via a **dedicated object or endpoint**, not raw `get pods`.
+Shipped example: [`examples/k8s-digest-publisher`](../examples/k8s-digest-publisher) — a namespaced CronJob lists Pods, writes ConfigMap `running-image-digests` (`images.json` with name / image / `imageID` only), and a Role that can **only** `get` that ConfigMap (`resourceNames`). Verifiers run:
+
+```bash
+kubectl -n <auth-ns> get configmap running-image-digests -o jsonpath='{.data.images\.json}{"\n"}'
+```
+
+So: use namespaced pod read when the Pod spec is already non-sensitive; if it is not, publish digest via this ConfigMap (or another dedicated endpoint), not raw `get pods`.
 
 ## VPS / Docker Compose alternative
 
@@ -93,7 +107,7 @@ Serve `/var/www/transparency/` with nginx (static files only). No docker.sock in
 
 Slightly nicer: a tiny container that mounts `docker.sock`, writes digests to a volume, and a second container (nginx) that only serves that volume—**never** mounts the socket.
 
-A copy-paste example lives in [`examples/vps-digest-status`](../examples/vps-digest-status). For Kubernetes, a namespaced reader Role is in [`examples/k8s-digest-reader`](../examples/k8s-digest-reader/role.yaml).
+A copy-paste example lives in [`examples/vps-digest-status`](../examples/vps-digest-status) (collector + nginx page at `/` and `/images.json`). For Kubernetes, publish a digest-only ConfigMap with [`examples/k8s-digest-publisher`](../examples/k8s-digest-publisher) so verifiers never `get` Pods. Full pod read (env visible) is [`examples/k8s-digest-reader`](../examples/k8s-digest-reader).
 
 ### Off-the-shelf UIs (use carefully)
 
@@ -139,6 +153,6 @@ Build workflows already record the pushed digest in the job summary and can emit
 
 1. Keep `impersonation` in `--features-disabled` (done).
 2. Treat **running image digest** as the primary proof; CI records digests for comparison.
-3. On Kubernetes: namespaced RO pod/deploy read, or a digest-only CRD/API if env leakage matters.
-4. On a VPS: **not** `docker` group—use a local socket agent + public digest list (static file / tiny API); optional WUD behind auth for richer UI.
+3. On Kubernetes: digest-only ConfigMap (`examples/k8s-digest-publisher`) for verifiers; optional full pod read if the spec is already public.
+4. On a VPS: **not** `docker` group—use a local socket agent + public digest list (`examples/vps-digest-status` page + JSON); optional WUD behind auth for richer UI.
 5. Use Server info / impersonation API only as optional corroboration for Keycloak admins.

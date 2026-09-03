@@ -1,0 +1,14 @@
+{
+  "generated_by": "janus-containers/examples/vps-digest-status",
+  "containers": [
+    {
+      "name": "janus-keycloak-1",
+      "compose_service": "keycloak",
+      "image": "example/keycloak_extended_a:26.7.3",
+      "image_id": "sha256:aaa111bbb222ccc333ddd444eee555fff666aaabbbcccdddeeefff0001112222",
+      "repo_digests": [
+        "example/keycloak_extended_a@sha256:aaa111bbb222ccc333ddd444eee555fff666aaabbbcccdddeeefff0001112222"
+      ]
+    }
+  ]
+}
