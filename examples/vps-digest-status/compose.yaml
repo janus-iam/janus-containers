@@ -1,0 +1,39 @@
+# Digest-only status page for a VPS.
+# Collector talks to docker.sock. Nginx does not.
+services:
+  collector:
+    image: docker:27-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - digest-status:/out
+      - ./collect.sh:/collect.sh:ro
+    environment:
+      OUT: /out/images.json
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          /bin/sh /collect.sh || true
+          sleep 60
+        done
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    image: nginx:1.27-alpine
+    ports:
+      - "127.0.0.1:8088:80"
+    volumes:
+      - digest-status:/usr/share/nginx/html:ro
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  digest-status:

@@ -93,6 +93,8 @@ Serve `/var/www/transparency/` with nginx (static files only). No docker.sock in
 
 Slightly nicer: a tiny container that mounts `docker.sock`, writes digests to a volume, and a second container (nginx) that only serves that volume—**never** mounts the socket.
 
+A copy-paste example lives in [`examples/vps-digest-status`](../examples/vps-digest-status). For Kubernetes, a namespaced reader Role is in [`examples/k8s-digest-reader`](../examples/k8s-digest-reader/role.yaml).
+
 ### Off-the-shelf UIs (use carefully)
 
 | Tool | Fit |
