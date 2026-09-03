@@ -18,8 +18,9 @@ case "$cmd" in
     echo cid1
     ;;
   inspect)
-    cid=$2
-    fmt=$3
+    # docker inspect -f FMT CID
+    fmt=$2
+    cid=$3
     case "$fmt" in
       '{{.Name}}') echo /janus-keycloak-1 ;;
       '{{.Config.Image}}') echo example/keycloak_extended_a:26.7.3 ;;
