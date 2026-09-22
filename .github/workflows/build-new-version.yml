@@ -9,7 +9,7 @@ on:
 jobs:
   build-and-push:
     if: github.event.pull_request.merged == true
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@v7
         with:
